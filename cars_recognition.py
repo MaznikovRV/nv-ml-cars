@@ -3,22 +3,37 @@ import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-import matplotlib.pyplot as plt
 import torch.optim as optim
 import torchvision.transforms as transforms
-import pandas as pd
 from PIL import Image
 import os
 import random
-#import cv2
+import cv2
 #from google.colab.patches import cv2_imshow
 
 from efficientnet_pytorch import EfficientNet
 
-#from nv_ml_controller.ml_base_model import BaseMachineLearningModel
-#from nv_ml_controller.ml_task import BaseMlTask
+from nv_ml_controller.ml_base_model import BaseMachineLearningModel
+from nv_ml_controller.ml_task import BaseMlTask
 
-class CarsRecognizer():
+class RESPONSE(BaseModel):
+    status: str
+    sleep_time: int
+
+    class Config:
+        title = 'RESPONSE'
+        extra = 'forbid'
+
+
+class REQUEST(BaseModel):
+    images: List[str]
+
+    class Config:
+        title = 'REQUEST'
+        extra = 'allow'
+
+
+class CarsRecognizer(BaseMachineLearningModel):
     """
     Recognition of special transport in the image
     """
