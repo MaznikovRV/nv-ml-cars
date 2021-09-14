@@ -128,3 +128,7 @@ class CarsRecognizer(BaseMachineLearningModel):
         car_label = self.predict_label(im_crop, classes)
 
         return car_coords, car_label
+ 
+if __name__ == '__main__':
+    CarsRecognizer()
+
