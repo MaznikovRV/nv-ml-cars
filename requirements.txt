@@ -1,0 +1,11 @@
+cython==0.29.20
+numpy==1.19.5
+opencv-python==4.2.0.34
+albumentations==0.4.3
+torch==1.7.1
+torchvision==0.8.2
+pretrainedmodels==0.7.4
+Pillow==7.0.0
+efficientnet_pytorch==0.6.3
+git+ssh://git@gitlab.com/neuro-core/neuro-vision/nv_ml_controller.git@v1.3.0
+git+ssh://git@gitlab.com/neuro-core/neuro-vision/nv_lib_internal_service_client.git@v0.0.5

@@ -1,0 +1,17 @@
+# настройки для диспетчера
+NV_DISPATCHER_URI: http://127.0.0.1:7300/1.4/
+NV_DISPATCHER_LOGIN: admin
+NV_DISPATCHER_PASSWORD: admin
+
+# путь формируется /{MODEL_PATH}
+MODEL_PATH: 'example_model'
+
+ML_DEBUG: true
+ML_LOG_TO_FILE: false
+
+DSP_PING_THREAD: false
+
+PREDICT_VALIDATION: true
+
+# "внутренние" настройки модели
+NV_STORAGE_URI: 'https://admin:admin@storage.neuro-vision.tech'
