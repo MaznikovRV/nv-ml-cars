@@ -56,6 +56,7 @@ class CarsRecognizer(BaseMachineLearningModel):
 
         self.cars_detection_model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
         self.cars_detection_model.classes = [2,5,7]
+        self.cars_detection_model.conf = 0.3
         self.cars_detection_model.to(self.device)
         self.cars_detection_model.eval()
 
@@ -82,11 +83,11 @@ class CarsRecognizer(BaseMachineLearningModel):
         idx = torch.topk(outputs, k=num_cls).indices.squeeze(0).tolist()[0]
         car_label = labels[idx]
 
-        print("\n")
+        #print("\n")
 
-        for idx in torch.topk(outputs, k=num_cls).indices.squeeze(0).tolist():
-            prob = torch.softmax(outputs, dim=1)[0, idx].item()
-            print('{label:<75} ({p:.2f}%)'.format(label=labels[idx], p=prob*100))
+        #for idx in torch.topk(outputs, k=num_cls).indices.squeeze(0).tolist():
+            #prob = torch.softmax(outputs, dim=1)[0, idx].item()
+            #print('{label:<75} ({p:.2f}%)'.format(label=labels[idx], p=prob*100))
 
         return car_label
 
@@ -95,7 +96,6 @@ class CarsRecognizer(BaseMachineLearningModel):
         classes = ['ambulance', 'common', 'fire-truck', 'police', 'tractor']
         #detect object
         result = self.cars_detection_model(img)
-        crop = result.crop('C:\\Users\\mazni\\Desktop\\NV_cars_recognition')
         xyxy = result.xyxy[0]
 
         #crop picture
@@ -111,20 +111,25 @@ class CarsRecognizer(BaseMachineLearningModel):
                 lower = int(xyxy[i][3])
                 square = (right - left) * (lower - upper)
 
-            if square >= largest_square:
-                largest_square = square
-                car_coords = (left, upper, right, lower)
-        else:
+                if square >= largest_square:
+                    largest_square = square
+                    car_coords = (left, upper, right, lower)
+                
+            im = Image.open(img)
+            im_crop = im.crop(car_coords)
+            
+        elif len(xyxy) == 1:
             left = int(xyxy[0][0])
             upper = int(xyxy[0][1])
             right = int(xyxy[0][2])
             lower = int(xyxy[0][3])
-            largest_square = (right - left) * (lower - upper)
             car_coords = (left, upper, right, lower)
-            
-        im = Image.open(img)
-        im_crop = im.crop(car_coords)   
-
+            im = Image.open(img)
+            im_crop = im.crop(car_coords)
+         
+        else:
+            im_crop = Image.open(img)
+       
         car_label = self.predict_label(im_crop, classes)
 
         return car_coords, car_label
