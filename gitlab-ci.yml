@@ -5,7 +5,7 @@ stages:
 build:
   image: docker:stable
   tags: 
-    - nv-ml-example-model
+    - nv-ml-cars
   stage: build
   services:
     - docker:dind
