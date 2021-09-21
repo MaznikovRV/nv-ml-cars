@@ -33,15 +33,21 @@ class REQUEST(BaseModel):
         extra = 'allow'
 
 
-class CarsRecognizer(BaseMachineLearningModel):
+class MLCarsRecognizer(BaseMachineLearningModel):
     """
-    Recognition of special transport in the image
+    Special transport recognition
     """
     model_cars_detection = 'weights/model_cars_detection'
 
-    def __init__(self):
+    def model_init(self):
+        """
+        Initialization for class
+
+        :param CONFIG: config with model parameters, loaded in the BaseModel.
+        """
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+        # get models paths
         model_cars_detection_path = os.path.join(
             self.model_cars_detection,
             os.listdir(self.model_cars_detection)[0]
@@ -50,38 +56,37 @@ class CarsRecognizer(BaseMachineLearningModel):
 
 
         self.cars_classification_model = EfficientNet.from_pretrained('efficientnet-b0',num_classes=5)
-        self.cars_classification_model.load_state_dict(torch.load(self.model_cars_detection_path, map_location='cpu'))
+        self.cars_classification_model.load_state_dict(torch.load(model_cars_detection_path, map_location='cpu'))
         self.cars_classification_model.to(self.device)
         self.cars_classification_model.eval()
 
-        self.cars_detection_model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
+        self.cars_detection_model = torch.hub.load('ultralytics/yolov5', 'yolov5l')
         self.cars_detection_model.classes = [2,5,7]
         self.cars_detection_model.conf = 0.3
         self.cars_detection_model.to(self.device)
         self.cars_detection_model.eval()
 
+        #self.logger.info('MLDamageClassification initialized')
     
-    def predict_label(self, img, labels,display_classes = None):
+    def _recognize_car(self, img):
         """
         Отображает картинку и предсказывает вероятности всех классов
         :param img: картинка 
         :param labels: подписи классов
         """     
-        self.tfms= transforms.Compose([transforms.Resize((224,224)),
+        tfms= transforms.Compose([transforms.Resize((224,224)),
                            transforms.ToTensor(),
                            transforms.Normalize(0.5, 0.5)])
+        
+        classes = ['ambulance', 'common', 'fire-truck', 'police', 'tractor']
 
         with torch.no_grad():
-            outputs = self.cars_classification_model(self.tfms(img).unsqueeze(0).to(self.device))
+            outputs = self.cars_classification_model(tfms(img).unsqueeze(0).to(self.device))
         
         all_cls = len(outputs[0])
-        if display_classes:
-            num_cls = display_classes if display_classes<=all_cls else all_cls
-        else:
-            num_cls = all_cls
 
-        idx = torch.topk(outputs, k=num_cls).indices.squeeze(0).tolist()[0]
-        car_label = labels[idx]
+        idx = torch.topk(outputs, k=all_cls).indices.squeeze(0).tolist()[0]
+        car_label = classes[idx]
 
         #print("\n")
 
@@ -91,49 +96,134 @@ class CarsRecognizer(BaseMachineLearningModel):
 
         return car_label
 
-    def detect_and_recognize(self, img):
+    def _get_detection_and_recognize(self, batch: list) -> Tuple[list, list]:
         
-        classes = ['ambulance', 'common', 'fire-truck', 'police', 'tractor']
-        #detect object
-        result = self.cars_detection_model(img)
-        xyxy = result.xyxy[0]
+        car_coords, car_label = [], []
 
-        #crop picture
-        square = 0
-        car_coords = ()
-        largest_square = -9999
+        for img in batch:
+          #detect object
+          result = self.cars_detection_model(img)
+          xyxy = result.xyxy[0]
 
-        if len(xyxy) > 1:
-            for i in range(len(xyxy)):
-                left = int(xyxy[i][0])
-                upper = int(xyxy[i][1])
-                right = int(xyxy[i][2])
-                lower = int(xyxy[i][3])
-                square = (right - left) * (lower - upper)
+          #crop picture
+          square = 0
+          coords = ()
+          largest_square = -9999
 
-                if square >= largest_square:
-                    largest_square = square
-                    car_coords = (left, upper, right, lower)
-                
-            im = Image.open(img)
-            im_crop = im.crop(car_coords)
-            
-        elif len(xyxy) == 1:
-            left = int(xyxy[0][0])
-            upper = int(xyxy[0][1])
-            right = int(xyxy[0][2])
-            lower = int(xyxy[0][3])
-            car_coords = (left, upper, right, lower)
-            im = Image.open(img)
-            im_crop = im.crop(car_coords)
-         
-        else:
-            im_crop = Image.open(img)
-       
-        car_label = self.predict_label(im_crop, classes)
+          if len(xyxy) > 1:
+              for i in range(len(xyxy)):
+                  left = int(xyxy[i][0])
+                  upper = int(xyxy[i][1])
+                  right = int(xyxy[i][2])
+                  lower = int(xyxy[i][3])
+                  square = (right - left) * (lower - upper)
+
+                  if square >= largest_square:
+                      largest_square = square
+                      coords = (left, upper, right, lower)
+                  
+              im = Image.open(img)
+              im_crop = im.crop(coords)
+              
+          elif len(xyxy) == 1:
+              left = int(xyxy[0][0])
+              upper = int(xyxy[0][1])
+              right = int(xyxy[0][2])
+              lower = int(xyxy[0][3])
+              coords = (left, upper, right, lower)
+              im = Image.open(img)
+              im_crop = im.crop(coords)
+          
+          else:
+              coords = []
+              im_crop = Image.open(img)
+        
+          label = self._recognize_car(im_crop, classes)
+          car_coords.append(coords)
+          car_label.append(label)
 
         return car_coords, car_label
- 
-if __name__ == '__main__':
-    CarsRecognizer()
+
+        
+    def _get_all_predictions(self, batch: list) -> dict:
+
+        results = []
+
+        # get detection cars model prediction
+        car_coords, car_labels = self._get_detection_and_recognize(batch)
+
+        for label, coord in zip(car_labels, car_coords):
+            
+                results.append(
+                        {
+                            'answer': label,
+                            'coords': coord
+                        }
+                              )
+        return results
+
+    def predict(self, task: BaseMlTask) -> list:
+        """
+        Head predictor. Method will make prediction for the whole batch.
+
+        :param task: BaseMlTask
+        :return: lits of dicts with answers
+        """
+
+        results = []
+        print('Inside predict()')
+
+        batch = []
+        for task_image in task.images:
+            batch.append(task_image.b64)
+        self.logger.info(f'Batch size {len(batch)}')
+
+        if len(batch) != 0:
+            
+            try:
+                # convert batch to np.array format
+                converted_batch = []
+                for _, img_b64 in enumerate(batch):
+                    image = np.array(Image.open(
+                        io.BytesIO(base64.b64decode(img_b64))))
+                    print(image.shape)
+                    if image.shape[2] > 3:
+                        image = image[:, :, 0:3]
+                    print(image.shape)
+                    converted_batch.append(image)
+            except:
+                results = [
+                    {
+                        'answer': 'error_1',
+                        'coords': []
+                    }
+                ]
+
+            # get prediction
+            results = self._get_all_predictions(converted_batch)
+
+        else:
+            results = [{
+                'answer': 'error_0',
+                'coords': []
+            }]
+
+        return results
+
+    def health(self):
+        """
+        Self check.
+        """
+        print('Inside health()!')
+        self.logger.info('Inside health()!')
+        task = BaseMlTask().create_from_directory(directory_path='tests/')
+        test_results = self.predict(task)
+        print(test_results)
+
+
+if __name__ == "__main__":
+    cars_detection_model = MLCarsRecognizer()
+    cars_detection_model.serve()
+    # cars_detection_model.model_init()
+
 
