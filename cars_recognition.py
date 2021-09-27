@@ -138,7 +138,11 @@ class MLCarsRecognizer(BaseMachineLearningModel):
               coords = []
               im_crop = Image.open(img)
         
-          label = self._recognize_car(im_crop, classes)
+          if self.config.get('CLASSIFICATION WITHOUT DETECTION', True):
+            label = self._predict_label(im_crop, classes) #возвращает класс в виде str
+          else:
+            label = ''
+            
           car_coords.append(coords)
           car_label.append(label)
 
