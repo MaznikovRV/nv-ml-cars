@@ -11,6 +11,8 @@ ML_LOG_TO_FILE: false
 
 DSP_PING_THREAD: false
 
+CLASSIFICATION WITHOUT DETECTION: true
+
 PREDICT_VALIDATION: true
 
 # "внутренние" настройки модели
